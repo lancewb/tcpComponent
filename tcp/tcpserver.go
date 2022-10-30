@@ -4,7 +4,7 @@ import (
 	"log"
 	"net"
 	"time"
-
+  "github.com/felixge/tcpkeepalive"
 	"github.com/golang/snappy"
 	"github.com/net-byte/vtun/common/cache"
 	"github.com/net-byte/vtun/common/cipher"
@@ -15,6 +15,35 @@ import (
 	//"github.com/patrickmn/go-cache"
 )
 
+func setTcpKeepAlive(conn net.Conn) (*tcpkeepalive.Conn, error) {
+
+	newConn, err := tcpkeepalive.EnableKeepAlive(conn)
+	if err != nil {
+			log.Println("EnableKeepAlive failed:", err)
+			return nil, err
+	}
+
+	err = newConn.SetKeepAliveIdle(10*time.Second)
+	if err != nil {
+			log.Println("SetKeepAliveIdle failed:", err)
+			return nil, err
+	}
+
+
+	err = newConn.SetKeepAliveCount(9)
+	if err != nil {
+			log.Println("SetKeepAliveCount failed:", err)
+			return nil, err
+	}
+	
+	err = newConn.SetKeepAliveInterval(10*time.Second)
+	if err != nil {
+			log.Println("SetKeepAliveInterval failed:", err)
+			return nil, err
+	}
+
+	return newConn, nil
+}
 // StartServer starts the udp server
 func StartServer(iface *water.Interface, config config.Config) {
 	log.Printf("vtun tcp server started on %v", config.LocalAddr)
@@ -33,7 +62,12 @@ func StartServer(iface *water.Interface, config config.Config) {
 		if err != nil {
 			continue
 		}
-		go toServer(config, conn, iface)
+    newConn, err := setTcpKeepAlive(conn)
+    if err != nil {
+      log.Println("setTcpKeepAlive failed:", err)
+      return
+    }
+		go toServer(config, newConn, iface)
 	}
 }
 
